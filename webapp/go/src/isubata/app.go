@@ -724,6 +724,7 @@ func getIcon(c echo.Context) error {
 	default:
 		return echo.ErrNotFound
 	}
+	c.Response().Header().Set("Cache-Control", "max-age=31536000")
 	return c.Blob(http.StatusOK, mime, data)
 }
 
