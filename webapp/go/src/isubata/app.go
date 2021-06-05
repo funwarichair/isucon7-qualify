@@ -23,6 +23,7 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/middleware"
+	measure "github.com/najeira/measure"
 )
 
 const (
@@ -39,10 +40,17 @@ type Renderer struct {
 }
 
 func (r *Renderer) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+	defer measure.Start(
+		"Render").
+		Stop()
+
 	return r.templates.ExecuteTemplate(w, name, data)
 }
 
 func init() {
+	defer measure.Start(
+		"init").Stop()
+
 	seedBuf := make([]byte, 8)
 	crand.Read(seedBuf)
 	rand.Seed(int64(binary.LittleEndian.Uint64(seedBuf)))
@@ -94,6 +102,10 @@ type User struct {
 }
 
 func getUser(userID int64) (*User, error) {
+	defer measure.Start(
+		"getUser",
+	).Stop()
+
 	u := User{}
 	if err := db.Get(&u, "SELECT * FROM user WHERE id = ?", userID); err != nil {
 		if err == sql.ErrNoRows {
@@ -105,6 +117,10 @@ func getUser(userID int64) (*User, error) {
 }
 
 func addMessage(channelID, userID int64, content string) (int64, error) {
+	defer measure.Start(
+		"addMessage",
+	).Stop()
+
 	res, err := db.Exec(
 		"INSERT INTO message (channel_id, user_id, content, created_at) VALUES (?, ?, ?, NOW())",
 		channelID, userID, content)
@@ -123,6 +139,10 @@ type Message struct {
 }
 
 func queryMessages(chanID, lastID int64) ([]Message, error) {
+	defer measure.Start(
+		"queryMessages",
+	).Stop()
+
 	msgs := []Message{}
 	err := db.Select(&msgs, "SELECT * FROM message WHERE id > ? AND channel_id = ? ORDER BY id DESC LIMIT 100",
 		lastID, chanID)
@@ -130,6 +150,10 @@ func queryMessages(chanID, lastID int64) ([]Message, error) {
 }
 
 func sessUserID(c echo.Context) int64 {
+	defer measure.Start(
+		"sessUserID",
+	).Stop()
+
 	sess, _ := session.Get("session", c)
 	var userID int64
 	if x, ok := sess.Values["user_id"]; ok {
@@ -139,6 +163,10 @@ func sessUserID(c echo.Context) int64 {
 }
 
 func sessSetUserID(c echo.Context, id int64) {
+	defer measure.Start(
+		"sessSetUserID",
+	).Stop()
+
 	sess, _ := session.Get("session", c)
 	sess.Options = &sessions.Options{
 		HttpOnly: true,
@@ -149,6 +177,10 @@ func sessSetUserID(c echo.Context, id int64) {
 }
 
 func ensureLogin(c echo.Context) (*User, error) {
+	defer measure.Start(
+		"ensureLogin",
+	).Stop()
+
 	var user *User
 	var err error
 
@@ -177,6 +209,10 @@ redirect:
 const LettersAndDigits = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 func randomString(n int) string {
+	defer measure.Start(
+		"randomString",
+	).Stop()
+
 	b := make([]byte, n)
 	z := len(LettersAndDigits)
 
@@ -187,6 +223,10 @@ func randomString(n int) string {
 }
 
 func register(name, password string) (int64, error) {
+	defer measure.Start(
+		"register",
+	).Stop()
+
 	salt := randomString(20)
 	digest := fmt.Sprintf("%x", sha1.Sum([]byte(salt+password)))
 
@@ -203,6 +243,10 @@ func register(name, password string) (int64, error) {
 // request handlers
 
 func getInitialize(c echo.Context) error {
+	defer measure.Start(
+		"getInitialize",
+	).Stop()
+
 	db.MustExec("DELETE FROM user WHERE id > 1000")
 	db.MustExec("DELETE FROM image WHERE id > 1001")
 	db.MustExec("DELETE FROM channel WHERE id > 10")
@@ -212,6 +256,10 @@ func getInitialize(c echo.Context) error {
 }
 
 func getIndex(c echo.Context) error {
+	defer measure.Start(
+		"getIndex",
+	).Stop()
+
 	userID := sessUserID(c)
 	if userID != 0 {
 		return c.Redirect(http.StatusSeeOther, "/channel/1")
@@ -231,6 +279,10 @@ type ChannelInfo struct {
 }
 
 func getChannel(c echo.Context) error {
+	defer measure.Start(
+		"getChannel",
+	).Stop()
+
 	user, err := ensureLogin(c)
 	if user == nil {
 		return err
@@ -261,6 +313,10 @@ func getChannel(c echo.Context) error {
 }
 
 func getRegister(c echo.Context) error {
+	defer measure.Start(
+		"getRegister",
+	).Stop()
+
 	return c.Render(http.StatusOK, "register", map[string]interface{}{
 		"ChannelID": 0,
 		"Channels":  []ChannelInfo{},
@@ -269,6 +325,10 @@ func getRegister(c echo.Context) error {
 }
 
 func postRegister(c echo.Context) error {
+	defer measure.Start(
+		"postRegister",
+	).Stop()
+
 	name := c.FormValue("name")
 	pw := c.FormValue("password")
 	if name == "" || pw == "" {
@@ -288,6 +348,10 @@ func postRegister(c echo.Context) error {
 }
 
 func getLogin(c echo.Context) error {
+	defer measure.Start(
+		"getLogin",
+	).Stop()
+
 	return c.Render(http.StatusOK, "login", map[string]interface{}{
 		"ChannelID": 0,
 		"Channels":  []ChannelInfo{},
@@ -296,6 +360,10 @@ func getLogin(c echo.Context) error {
 }
 
 func postLogin(c echo.Context) error {
+	defer measure.Start(
+		"postLogin",
+	).Stop()
+
 	name := c.FormValue("name")
 	pw := c.FormValue("password")
 	if name == "" || pw == "" {
@@ -319,6 +387,10 @@ func postLogin(c echo.Context) error {
 }
 
 func getLogout(c echo.Context) error {
+	defer measure.Start(
+		"getLogout",
+	).Stop()
+
 	sess, _ := session.Get("session", c)
 	delete(sess.Values, "user_id")
 	sess.Save(c.Request(), c.Response())
@@ -326,6 +398,10 @@ func getLogout(c echo.Context) error {
 }
 
 func postMessage(c echo.Context) error {
+	defer measure.Start(
+		"postMessage",
+	).Stop()
+
 	user, err := ensureLogin(c)
 	if user == nil {
 		return err
@@ -351,6 +427,10 @@ func postMessage(c echo.Context) error {
 }
 
 func jsonifyMessage(m Message) (map[string]interface{}, error) {
+	defer measure.Start(
+		"jsonifyMessage",
+	).Stop()
+
 	u := User{}
 	err := db.Get(&u, "SELECT name, display_name, avatar_icon FROM user WHERE id = ?",
 		m.UserID)
@@ -367,6 +447,10 @@ func jsonifyMessage(m Message) (map[string]interface{}, error) {
 }
 
 func getMessage(c echo.Context) error {
+	defer measure.Start(
+		"getMessage",
+	).Stop()
+
 	userID := sessUserID(c)
 	if userID == 0 {
 		return c.NoContent(http.StatusForbidden)
@@ -410,12 +494,20 @@ func getMessage(c echo.Context) error {
 }
 
 func queryChannels() ([]int64, error) {
+	defer measure.Start(
+		"queryChannels",
+	).Stop()
+
 	res := []int64{}
 	err := db.Select(&res, "SELECT id FROM channel")
 	return res, err
 }
 
 func queryHaveRead(userID, chID int64) (int64, error) {
+	defer measure.Start(
+		"queryHaveRead",
+	).Stop()
+
 	type HaveRead struct {
 		UserID    int64     `db:"user_id"`
 		ChannelID int64     `db:"channel_id"`
@@ -437,6 +529,10 @@ func queryHaveRead(userID, chID int64) (int64, error) {
 }
 
 func fetchUnread(c echo.Context) error {
+	defer measure.Start(
+		"fetchUnread",
+	).Stop()
+
 	userID := sessUserID(c)
 	if userID == 0 {
 		return c.NoContent(http.StatusForbidden)
@@ -480,6 +576,10 @@ func fetchUnread(c echo.Context) error {
 }
 
 func getHistory(c echo.Context) error {
+	defer measure.Start(
+		"getHistory",
+	).Stop()
+
 	chID, err := strconv.ParseInt(c.Param("channel_id"), 10, 64)
 	if err != nil || chID <= 0 {
 		return ErrBadReqeust
@@ -549,6 +649,10 @@ func getHistory(c echo.Context) error {
 }
 
 func getProfile(c echo.Context) error {
+	defer measure.Start(
+		"getProfile",
+	).Stop()
+
 	self, err := ensureLogin(c)
 	if self == nil {
 		return err
@@ -580,6 +684,10 @@ func getProfile(c echo.Context) error {
 }
 
 func getAddChannel(c echo.Context) error {
+	defer measure.Start(
+		"getAddChannel",
+	).Stop()
+
 	self, err := ensureLogin(c)
 	if self == nil {
 		return err
@@ -599,6 +707,10 @@ func getAddChannel(c echo.Context) error {
 }
 
 func postAddChannel(c echo.Context) error {
+	defer measure.Start(
+		"postAddChannel",
+	).Stop()
+
 	self, err := ensureLogin(c)
 	if self == nil {
 		return err
@@ -622,6 +734,10 @@ func postAddChannel(c echo.Context) error {
 }
 
 func postProfile(c echo.Context) error {
+	defer measure.Start(
+		"postProfile",
+	).Stop()
+
 	self, err := ensureLogin(c)
 	if self == nil {
 		return err
@@ -683,6 +799,10 @@ func postProfile(c echo.Context) error {
 }
 
 func getIcon(c echo.Context) error {
+	defer measure.Start(
+		"getIcon",
+	).Stop()
+
 	var name string
 	var data []byte
 	err := db.QueryRow("SELECT name, data FROM image WHERE name = ?",
@@ -709,10 +829,17 @@ func getIcon(c echo.Context) error {
 }
 
 func tAdd(a, b int64) int64 {
+	defer measure.Start(
+		"tAdd").Stop()
+
 	return a + b
 }
 
 func tRange(a, b int64) []int64 {
+	defer measure.Start(
+		"tRange").
+		Stop()
+
 	r := make([]int64, b-a+1)
 	for i := int64(0); i <= (b - a); i++ {
 		r[i] = a + i
@@ -721,6 +848,38 @@ func tRange(a, b int64) []int64 {
 }
 
 func main() {
+	defer measure.Start(
+		"main").Stop()
+
+
+    //Shutodown
+    go func() {
+        sig := make(chan os.Signal, 1)
+        signal.Notify(sig, syscall.SIGINT)
+        s := <-sig
+        fmt.Printf("Received shutdown signal %s\n", s)
+
+        // Output logs
+        stats := measure.GetStats()
+        stats.SortDesc("sum")
+        applog := os.Getenv("WEBAPP_LOG")
+        if applog == "" {
+            wd, _ := os.Getwd()
+            const layout = "2000-01-01-12-00-00"
+            applog = wd + "/measure" + time.Now().Format(layout)) + ".csv"
+        }
+        w, err := os.OpenFile(applog, os.O_RDWR|os.O_CREATE, 0755)
+        if err != nil {
+            log.Fatal(err)
+        }
+        for _, s := range stats {
+            fmt.Fprintf(w, "%s,%d,%f,%f,%f,%f,%f,%f\n",
+            s.Key, s.Count, s.Sum, s.Min, s.Max, s.Avg, s.Rate, s.P95)
+        }
+        fmt.Printf("Output measure log\n")
+        os.Exit(0)
+    }()
+
 	e := echo.New()
 	funcs := template.FuncMap{
 		"add":    tAdd,
