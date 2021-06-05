@@ -118,13 +118,26 @@ type Message struct {
 	ID        int64     `db:"id"`
 	ChannelID int64     `db:"channel_id"`
 	UserID    int64     `db:"user_id"`
+	UserName        string    `db:"user_name"`
+	UserDisplayName string    `db:"user_display_name"`
+	UserAvatarIcon  string    `db:"user_avatar_icon"`
 	Content   string    `db:"content"`
 	CreatedAt time.Time `db:"created_at"`
 }
 
 func queryMessages(chanID, lastID int64) ([]Message, error) {
 	msgs := []Message{}
-	err := db.Select(&msgs, "SELECT * FROM message WHERE id > ? AND channel_id = ? ORDER BY id DESC LIMIT 100",
+	err := db.Select(&msgs, `
+SELECT
+	message.*,
+	user.name as user_name,
+	user.display_name as user_display_name,
+	user.avatar_icon as user_avatar_icon
+FROM message
+INNER JOIN user ON user.id = user_id
+WHERE message.id > ? AND channel_id = ?
+ORDER BY id DESC LIMIT 100
+`,
 		lastID, chanID)
 	return msgs, err
 }
@@ -352,11 +365,9 @@ func postMessage(c echo.Context) error {
 
 func jsonifyMessage(m Message) (map[string]interface{}, error) {
 	u := User{}
-	err := db.Get(&u, "SELECT name, display_name, avatar_icon FROM user WHERE id = ?",
-		m.UserID)
-	if err != nil {
-		return nil, err
-	}
+	u.Name = m.UserName
+	u.DisplayName = m.UserDisplayName
+	u.AvatarIcon = m.UserAvatarIcon
 
 	r := make(map[string]interface{})
 	r["id"] = m.ID
@@ -517,7 +528,15 @@ func getHistory(c echo.Context) error {
 
 	messages := []Message{}
 	err = db.Select(&messages,
-		"SELECT * FROM message WHERE channel_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+		`SELECT
+		message.*,
+		user.name as user_name,
+		user.display_name as user_display_name,
+		user.avatar_icon as user_avatar_icon
+FROM message
+INNER JOIN user ON user.id = message.user_id
+WHERE message.channel_id = ? ORDER BY message.id DESC LIMIT ? OFFSET ?
+`,
 		chID, N, (page-1)*N)
 	if err != nil {
 		return err
